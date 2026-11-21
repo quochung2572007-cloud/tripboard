@@ -178,17 +178,3 @@ export const leaveTrip: ActionHandler<Env> = async ({ userId, params, tools }) =
   return ok({ tripId })
 }
 
-/**
- * One-time, owner-only backfill for trips created before `tripId` existed.
- * Idempotent: only touches rows whose `tripId` is missing.
- */
-export const backfillTripIds: ActionHandler<Env> = async ({ tools }) => {
-  const all = await queryAll<TripData>(tools, 'trips', {}, 500)
-  let updated = 0
-  for (const t of all) {
-    if (t.data.tripId === t.recordId) continue
-    const r = await tools.update('trips', t.recordId, { tripId: t.recordId })
-    if (r.success) updated++
-  }
-  return ok({ scanned: all.length, updated })
-}

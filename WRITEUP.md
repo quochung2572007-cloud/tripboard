@@ -60,7 +60,7 @@ Smaller tradeoffs:
 
 ## Verification
 
-Automated (`npx deepspace test run all`: 13/13 passing; `vitest`: 17/17, 14 of them for the trip logic):
+Automated (`npx deepspace test run all`: 14/14 passing; `vitest`: 17/17, 14 of them for the trip logic):
 - Alice creates a trip. Bob joins via the invite link. Alice sees Bob arrive (presence) without reloading.
 - Places and votes sync live; the shortlist reorders for both; un-voting syncs.
 - Carol (not invited) gets "This board isn't open to you", and the server refuses her `addPlace` and `generateItinerary` calls.
@@ -89,10 +89,17 @@ I measured before changing anything. Server actions were already 45–80ms media
 | `removePlace` action deletes the place's votes (bounded `deleteWhere`) | Removing a place left orphan votes | Cascade; only the person who added it can remove it (e2e-tested) |
 | Independent reads in `requireMember` and email recipients run in parallel | Sequential round trips | One round-trip of latency |
 
+## Managing a trip (added after the first submission draft)
+
+- **Edit trip** (organizer): rename and change dates. New dates clear the cached forecast.
+- **New invite link** (organizer): the old link stops working immediately; current members stay.
+- **Leave trip** (members): removes their votes, and the board stops syncing to them. They can rejoin with a current link. The organizer can't leave, because the platform always lets a row's creator read it.
+- Roles are checked in the server actions, not just by hiding buttons. An e2e test calls the actions directly as the wrong role and expects refusals.
+
+**Bug this found:** the trip row used `teamField: '_rowId'`. Reads honoured it, but updates to the trip row were not broadcast to members, so a rename (and the "building the plan" lock) only showed live for the creator. The trip row now stores its own id in a `tripId` column and uses that as its team field, like every other trip-scoped row. I backfilled the 6 existing production trips with a one-time idempotent action, checked a second run changed nothing, then removed the action.
+
 ## Unfinished / next steps
 
-- Edit the trip (rename, change dates) and leave a trip. Membership rows already support `status: 'left'`, but there's no UI yet.
-- Rotate the invite link (revoke old links).
 - Comments on places, and "must do" vs "nice to have" weights for votes.
 - Move plan generation to a background job with streamed progress.
 - Embed a real map once a map-tile integration exists. Use place coordinates for routing-aware days.
