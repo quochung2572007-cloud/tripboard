@@ -1,30 +1,24 @@
 /**
- * Integration Billing Config
+ * Integration Billing Config — who pays for each integration's calls.
  *
- * Configure who pays for each integration's API calls.
+ * Tripboard calls every integration from server actions, which check trip
+ * membership and apply per-user / per-trip daily quotas before spending
+ * (src/actions/helpers.ts → takeQuota). So the app owner pays ('developer'),
+ * and friends invited by link never need DeepSpace credits of their own.
+ * None of these allow anonymous callers.
  *
- * - 'developer': The app owner pays (default).
- * - 'user': The calling user pays.
- *
- * Every integration requires a signed-in caller. Set `anonymous: true` on a
- * 'developer' integration to let signed-out visitors call it too — the owner
- * then pays for anyone who can reach the app.
- *
- * Integrations not listed here default to 'developer' with sign-in required.
- *
- * IMPORTANT: any integration backed by per-user connected accounts (Google,
- * Composio) must be 'user' — the api-worker resolves the account from the
- * JWT subject. With 'developer' the app owner's JWT is forwarded, so every
- * signed-in user connects and acts on the app owner's account. Server code
- * that acts for a user in the background (e.g. a cron job) uses
- * `callComposio(env, ..., { asUser })` from 'deepspace/worker' instead.
+ * Any integration backed by per-user connected accounts (Google, Composio)
+ * must stay 'user'.
  */
 
 export const integrations: Record<
   string,
   { billing: 'developer' | 'user'; anonymous?: boolean }
 > = {
+  exa: { billing: 'developer' },
+  anthropic: { billing: 'developer' },
+  openweathermap: { billing: 'developer' },
+  email: { billing: 'developer' },
   google: { billing: 'user' },
   composio: { billing: 'user' },
-  // openai: { billing: 'developer', anonymous: true },
 }

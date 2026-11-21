@@ -91,6 +91,13 @@
   --color-shell: #0a0a0a;
   --color-shell-panel: #161616;
 
+  /* Tripboard tokens (values per theme in themes.css) */
+  --color-stamp: #c2492f;
+  --color-stamp-foreground: #fdf8ee;
+  --color-sun: #d99a2b;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
   /* Animations */
   --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
 }
@@ -164,7 +171,7 @@
   }
 
   body {
-    font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-sans);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -231,4 +238,40 @@
   a, button, [role="button"], input, select, textarea {
     touch-action: manipulation;
   }
+}
+
+
+/* ── Tripboard signature elements ─────────────────────────────────────────── */
+
+/* Faint ruled-notebook paper behind the app. */
+.paper-ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 31px,
+    color-mix(in srgb, var(--color-border) 45%, transparent) 31px,
+    color-mix(in srgb, var(--color-border) 45%, transparent) 32px
+  );
+}
+
+/* Postmark-style vote stamp: dashed double ring, slight tilt. */
+.stamp {
+  border: 2px dashed currentColor;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 9999px;
+  transform: rotate(-8deg);
+}
+
+/* Ticket stub: perforated left edge for itinerary days. */
+.ticket {
+  position: relative;
+  background:
+    radial-gradient(circle at 0 12px, var(--color-background) 6px, transparent 6.5px) 0 0 / 12px 24px repeat-y,
+    var(--color-card);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise 280ms ease-out both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 }
