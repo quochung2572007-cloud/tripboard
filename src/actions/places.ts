@@ -70,13 +70,25 @@ export const suggestPlaces: ActionHandler<Env> = async ({ userId, params, tools 
   if (!sources.length) return ok({ suggestions: [], sourceCount: 0 })
 
   const prompt = buildSuggestPrompt(query, destination, sources)
-  let suggestions
-  try {
-    const reply = await askClaude(tools, { model: EXTRACT_MODEL, system: prompt.system, user: prompt.user, maxTokens: 1500 })
-    suggestions = validateSuggestions(extractJson(reply), sources)
-  } catch (e) {
-    return fail(`Couldn't read the search results: ${(e as Error).message}`)
+  // Exa has already been paid for, so a malformed model reply gets one retry
+  // (seen in production: an unescaped quote inside a "why" string).
+  let suggestions: PlaceSuggestion[] | null = null
+  let lastError = ''
+  for (let attempt = 0; attempt < 2 && !suggestions; attempt++) {
+    try {
+      const reply = await askClaude(tools, {
+        model: EXTRACT_MODEL,
+        system: prompt.system,
+        user: attempt === 0 ? prompt.user : `${prompt.user}\n\nReturn ONLY valid JSON. Escape any double quotes inside strings.`,
+        maxTokens: 1500,
+        temperature: 0,
+      })
+      suggestions = validateSuggestions(extractJson(reply), sources)
+    } catch (e) {
+      lastError = (e as Error).message
+    }
   }
+  if (!suggestions) return fail(`Couldn't read the search results, please try again. (${lastError})`)
   if (suggestions.length) {
     await tools.create('search_cache', { suggestions, sourceCount: sources.length, fetchedAt: Date.now() }, cacheId)
   }

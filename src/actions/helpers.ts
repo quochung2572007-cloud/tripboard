@@ -127,12 +127,12 @@ export async function takeQuota(tools: ActionTools, scope: string, kind: string,
 /** Call Claude through the integration proxy and return the text reply. */
 export async function askClaude(
   tools: ActionTools,
-  opts: { model: string; system: string; user: string; maxTokens: number },
+  opts: { model: string; system: string; user: string; maxTokens: number; temperature?: number },
 ): Promise<string> {
   const r = await tools.integration<{ content?: { type: string; text?: string }[] }>('anthropic/chat-completion', {
     model: opts.model,
     max_tokens: opts.maxTokens,
-    temperature: 0.3,
+    temperature: opts.temperature ?? 0.3,
     system: opts.system,
     messages: [{ role: 'user', content: opts.user }],
   })
