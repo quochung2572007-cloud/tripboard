@@ -91,7 +91,7 @@ I measured before changing anything. Server actions were already 45–80ms media
 
 ## Unfinished / next steps
 
-- **Plan email lands in spam.** `email/send` always sends from DeepSpace's shared sender (`notifications@updates.app.space`), so deliverability isn't under the app's control. Fix: verify my own domain in Resend, store the key with `deepspace secrets set RESEND_API_KEY=…`, and send from a server action. Until then, the app should tell people to check spam.
+- **Plan email lands in spam.** `email/send` always sends from DeepSpace's shared sender (`notifications@updates.app.space`), so deliverability isn't under the app's control. Fix: verify my own domain in Resend, store the key with `deepspace secrets set RESEND_API_KEY=…`, and send from a server action. Until then, the app's confirmation tells people to check spam.
 - Edit the trip (rename, change dates) and leave a trip. Membership rows already support `status: 'left'`, but there's no UI yet.
 - Rotate the invite link (revoke old links).
 - Comments on places, and "must do" vs "nice to have" weights for votes.

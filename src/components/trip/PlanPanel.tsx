@@ -51,7 +51,7 @@ export function PlanPanel({ tripId, trip, itineraries, placeNames, placeCount, n
     const r = await callAction<{ sentTo: number }>('emailItinerary', { tripId, itineraryId: current.recordId })
     setEmailing(false)
     if (!r.success) return error('Email not sent', r.error)
-    success(`Sent to ${r.data.sentTo} ${r.data.sentTo === 1 ? 'person' : 'people'}`)
+    success(`Sent to ${r.data.sentTo} ${r.data.sentTo === 1 ? 'person' : 'people'}`, 'It comes from notifications@updates.app.space and may land in spam.')
   }
 
   return (
