@@ -98,6 +98,15 @@ test('trip board: invite, live votes, and privacy for outsiders', async ({ users
   await card(bob.page, 'Belém Tower').getByTestId('vote-button').click()
   await expect(card(alice.page, 'Belém Tower').getByTestId('vote-count')).toHaveText('1', { timeout: 15_000 })
 
+  // Removing a place (with its votes) is live; only the adder may remove it.
+  const belemId = await card(bob.page, 'Belém Tower').getAttribute('data-place-id')
+  const bobRemove = await action(bob.page, 'removePlace', { tripId, placeId: belemId })
+  expect(bobRemove.success).toBe(false)
+  expect(bobRemove.error).toMatch(/Only the person who added/)
+  await card(alice.page, 'Belém Tower').getByRole('button', { name: 'Remove Belém Tower' }).click()
+  await expect(card(bob.page, 'Belém Tower')).toHaveCount(0, { timeout: 15_000 })
+  await expect(bob.page.getByTestId('place-card')).toHaveCount(1)
+
   // Carol still sees nothing after all that activity.
   await carol.page.reload()
   await expect(carol.page.getByTestId('trip-missing')).toBeVisible({ timeout: 15_000 })

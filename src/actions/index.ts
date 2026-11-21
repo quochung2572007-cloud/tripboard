@@ -6,7 +6,7 @@
 import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { createTrip, joinTrip, resolveInvite } from './trips'
-import { addPlace, suggestPlaces } from './places'
+import { addPlace, removePlace, suggestPlaces } from './places'
 import { emailItinerary, generateItinerary, refreshForecast } from './plan'
 
 export const actions: Record<string, ActionHandler<Env>> = {
@@ -15,6 +15,7 @@ export const actions: Record<string, ActionHandler<Env>> = {
   joinTrip,
   suggestPlaces,
   addPlace,
+  removePlace,
   refreshForecast,
   generateItinerary,
   emailItinerary,

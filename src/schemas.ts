@@ -7,6 +7,7 @@ import { usersSchema } from './schemas/users-schema'
 import {
   itinerariesSchema,
   placesSchema,
+  searchCacheSchema,
   teamMembersSchema,
   tripsSchema,
   usageCountersSchema,
@@ -21,4 +22,5 @@ export const schemas: CollectionSchema[] = [
   votesSchema,
   itinerariesSchema,
   usageCountersSchema,
+  searchCacheSchema,
 ]

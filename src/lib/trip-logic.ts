@@ -167,6 +167,14 @@ function str(v: unknown, max: number): string {
 
 // Place suggestions (Exa sources → Claude extraction)
 
+export const SEARCH_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+
+/** Cache key text for a search: case/spacing/punctuation-insensitive. */
+export function searchCacheText(destination: string, query: string): string {
+  const norm = (s: string) => s.toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+  return `${norm(destination)}|${norm(query)}`
+}
+
 export interface SourceDoc {
   title: string
   url: string

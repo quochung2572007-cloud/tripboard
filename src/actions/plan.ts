@@ -179,11 +179,8 @@ export const emailItinerary: ActionHandler<Env> = async ({ userId, params, tools
 
   // Emails are read server-side and never returned to the client.
   const members = await activeMembers(tools, tripId)
-  const emails: string[] = []
-  for (const m of members) {
-    const u = await getRecord<{ email?: string }>(tools, 'users', m.data.userId)
-    if (u?.data.email) emails.push(u.data.email)
-  }
+  const users = await Promise.all(members.map((m) => getRecord<{ email?: string }>(tools, 'users', m.data.userId)))
+  const emails = users.map((u) => u?.data.email).filter((e): e is string => Boolean(e))
   if (!emails.length) return fail('No member email addresses are available.')
 
   const places = await queryAll<PlaceData>(tools, 'places', { tripId })

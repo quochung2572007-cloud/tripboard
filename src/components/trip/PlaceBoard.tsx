@@ -11,6 +11,7 @@ import { ExternalLink, MapPinned, Trash2 } from 'lucide-react'
 import { Button, Tooltip, TooltipContent, TooltipTrigger, useToast } from '@/components/ui'
 import { hostOf, initials, mapsUrl } from '@/lib/format'
 import type { RankedPlace } from '@/lib/trip-logic'
+import { callAction } from '@/lib/api'
 import type { Place, Vote } from '@/lib/types'
 
 export interface BoardPlace {
@@ -35,7 +36,6 @@ interface Props {
 
 export function PlaceBoard({ tripId, destination, ranked, memberCount, me, myVotes, nameOf, watchers, onFocus }: Props) {
   const votes = useMutations<Vote>('votes')
-  const places = useMutations<Place>('places')
   const { error } = useToast()
 
   // Dev/test-only hook: send a raw vote write that skips the toggle logic, so
@@ -88,6 +88,7 @@ export function PlaceBoard({ tripId, destination, ranked, memberCount, me, myVot
             onFocus={() => onFocus(place.id)}
             data-testid="place-card"
             data-place-name={place.name}
+            data-place-id={place.id}
           >
             <div className="flex w-16 shrink-0 flex-col items-center gap-1 pt-1">
               <div
@@ -148,8 +149,10 @@ export function PlaceBoard({ tripId, destination, ranked, memberCount, me, myVot
                   <button
                     type="button"
                     className="ml-auto inline-flex items-center gap-1 hover:text-destructive disabled:opacity-50"
-                    disabled={!places.ready}
-                    onClick={() => places.remove(place.id)}
+                    onClick={async () => {
+                      const r = await callAction('removePlace', { tripId, placeId: place.id })
+                      if (!r.success) error('Could not remove', r.error)
+                    }}
                     aria-label={`Remove ${place.name}`}
                   >
                     <Trash2 className="size-3.5" /> Remove

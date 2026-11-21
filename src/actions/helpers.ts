@@ -94,9 +94,13 @@ export async function requireMember(
   tripId: string,
   userId: string,
 ): Promise<{ ok: true; trip: Envelope<TripData> } | { ok: false; error: string }> {
-  const trip = await getRecord<TripData>(tools, 'trips', tripId)
+  if (!tripId) return { ok: false, error: 'Trip not found.' }
+  // Independent reads — run them together (one DO round trip of latency, not two).
+  const [trip, rows] = await Promise.all([
+    getRecord<TripData>(tools, 'trips', tripId),
+    queryAll<MemberData>(tools, 'team_members', { teamId: tripId, userId }),
+  ])
   if (!trip) return { ok: false, error: 'Trip not found.' }
-  const rows = await queryAll<MemberData>(tools, 'team_members', { teamId: tripId, userId })
   if (!rows.some((m) => m.data.status !== 'left')) return { ok: false, error: 'You are not on this trip.' }
   return { ok: true, trip }
 }

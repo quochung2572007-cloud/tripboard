@@ -16,7 +16,7 @@ export function PlaceFinder({ tripId, destination, existingNames }: { tripId: st
   const { error, success } = useToast()
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
-  const [results, setResults] = useState<{ query: string; items: PlaceSuggestion[]; sourceCount: number } | null>(null)
+  const [results, setResults] = useState<{ query: string; items: PlaceSuggestion[]; sourceCount: number; cached: boolean } | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [adding, setAdding] = useState<string | null>(null)
   const [manual, setManual] = useState('')
@@ -27,10 +27,10 @@ export function PlaceFinder({ tripId, destination, existingNames }: { tripId: st
     setQuery(text)
     setSearching(true)
     setSearchError(null)
-    const r = await callAction<{ suggestions: PlaceSuggestion[]; sourceCount: number }>('suggestPlaces', { tripId, query: text })
+    const r = await callAction<{ suggestions: PlaceSuggestion[]; sourceCount: number; cached: boolean }>('suggestPlaces', { tripId, query: text })
     setSearching(false)
     if (!r.success) return setSearchError(r.error)
-    setResults({ query: text, items: r.data.suggestions, sourceCount: r.data.sourceCount })
+    setResults({ query: text, items: r.data.suggestions, sourceCount: r.data.sourceCount, cached: r.data.cached })
   }
 
   async function add(p: { name: string; kind?: string; why?: string; sourceUrl?: string; sourceTitle?: string }, origin: 'search' | 'manual') {
@@ -88,7 +88,7 @@ export function PlaceFinder({ tripId, destination, existingNames }: { tripId: st
         <div className="mt-3" data-testid="suggestions">
           <p className="text-xs text-muted-foreground">
             {results.items.length
-              ? `${results.items.length} places for “${results.query}”, each cited from one of ${results.sourceCount} pages`
+              ? `${results.items.length} places for “${results.query}”, each cited from one of ${results.sourceCount} pages${results.cached ? ' · searched recently, so this was instant' : ''}`
               : `Nothing specific found for “${results.query}”. Try different words.`}
           </p>
           <ul className="mt-2 divide-y divide-border">

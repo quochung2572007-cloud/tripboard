@@ -4,12 +4,22 @@ import {
   rankPlaces,
   renderItineraryEmail,
   rollupForecast,
+  searchCacheText,
   tripDates,
   tripHasForecastWindow,
   validateItinerary,
   validateSuggestions,
   validateTripDates,
 } from './trip-logic'
+
+describe('searchCacheText', () => {
+  it('treats case, spacing and punctuation variants as the same search', () => {
+    const a = searchCacheText('Lisbon, PT', 'Pastry  shops!')
+    expect(searchCacheText('lisbon pt', ' pastry shops ')).toBe(a)
+    expect(searchCacheText('Lisbon, PT', 'pastry shop')).not.toBe(a)
+    expect(searchCacheText('Porto, PT', 'pastry shops')).not.toBe(a)
+  })
+})
 
 describe('dates', () => {
   it('lists inclusive trip dates across a month boundary', () => {

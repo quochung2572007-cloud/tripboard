@@ -78,9 +78,10 @@ export const placesSchema: CollectionSchema = {
   permissions: {
     '*': closed,
     viewer: closed,
-    // Whoever added a place may remove it; adding goes through `addPlace`.
-    member: { read: 'team', create: false, update: false, delete: 'own' },
-    admin: { read: 'team', create: false, update: false, delete: 'own' },
+    // Add and remove go through server actions (`addPlace`, `removePlace`) so
+    // removal can also delete the place's votes.
+    member: { read: 'team', create: false, update: false, delete: false },
+    admin: { read: 'team', create: false, update: false, delete: false },
   },
 }
 
@@ -117,6 +118,21 @@ export const itinerariesSchema: CollectionSchema = {
   ],
   teamField: 'tripId',
   permissions: teamReadOnly,
+}
+
+/**
+ * Server-only cache of place suggestions keyed by (destination, query).
+ * Results depend only on the public web, not on the trip, so every trip to
+ * the same city shares them: a repeat search is instant and costs nothing.
+ */
+export const searchCacheSchema: CollectionSchema = {
+  name: 'search_cache',
+  columns: [
+    { name: 'suggestions', storage: 'text', interpretation: { kind: 'json' } },
+    { name: 'sourceCount', storage: 'number', interpretation: 'plain' },
+    { name: 'fetchedAt', storage: 'number', interpretation: 'plain' },
+  ],
+  permissions: { '*': closed, viewer: closed, member: closed, admin: closed },
 }
 
 /** Per-user / per-trip counters for owner-billed calls. Server-only. */

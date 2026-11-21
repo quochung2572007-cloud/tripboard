@@ -11,8 +11,16 @@
 
 import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
-import { buildSuggestPrompt, extractJson, validateSuggestions, type SourceDoc } from '../lib/trip-logic'
-import { askClaude, fail, ok, param, queryAll, requireMember, takeQuota, type PlaceData } from './helpers'
+import {
+  SEARCH_CACHE_TTL_MS,
+  buildSuggestPrompt,
+  extractJson,
+  searchCacheText,
+  validateSuggestions,
+  type PlaceSuggestion,
+  type SourceDoc,
+} from '../lib/trip-logic'
+import { askClaude, fail, getRecord, ok, param, queryAll, requireMember, takeQuota, type PlaceData } from './helpers'
 
 const EXTRACT_MODEL = 'claude-haiku-5-5'
 const MAX_PLACES_PER_TRIP = 40
@@ -32,6 +40,14 @@ export const suggestPlaces: ActionHandler<Env> = async ({ userId, params, tools 
   const access = await requireMember(tools, tripId, userId)
   if (!access.ok) return fail(access.error)
   const destination = access.trip.data.destination
+
+  // Shared cache: the same search in the same city is answered from storage
+  // (no Exa/Claude spend, no quota used) for 24 hours.
+  const cacheId = await cacheKey(searchCacheText(destination, query))
+  const cached = await getRecord<{ suggestions: PlaceSuggestion[]; sourceCount: number; fetchedAt: number }>(tools, 'search_cache', cacheId)
+  if (cached && Date.now() - cached.data.fetchedAt < SEARCH_CACHE_TTL_MS && cached.data.suggestions?.length) {
+    return ok({ suggestions: cached.data.suggestions, sourceCount: cached.data.sourceCount, cached: true })
+  }
 
   const quota = await takeQuota(tools, userId, 'suggest', 25)
   if (quota) return fail(quota)
@@ -61,7 +77,35 @@ export const suggestPlaces: ActionHandler<Env> = async ({ userId, params, tools 
   } catch (e) {
     return fail(`Couldn't read the search results: ${(e as Error).message}`)
   }
-  return ok({ suggestions, sourceCount: sources.length })
+  if (suggestions.length) {
+    await tools.create('search_cache', { suggestions, sourceCount: sources.length, fetchedAt: Date.now() }, cacheId)
+  }
+  return ok({ suggestions, sourceCount: sources.length, cached: false })
+}
+
+async function cacheKey(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return 'q_' + [...new Uint8Array(digest)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Remove a place you added, together with its votes. */
+export const removePlace: ActionHandler<Env> = async ({ userId, params, tools }) => {
+  const tripId = param(params, 'tripId', 64)
+  const placeId = param(params, 'placeId', 64)
+  const access = await requireMember(tools, tripId, userId)
+  if (!access.ok) return fail(access.error)
+  const place = await getRecord<PlaceData>(tools, 'places', placeId)
+  if (!place || place.data.tripId !== tripId) return fail('Place not found.')
+  if (place.createdBy !== userId) return fail('Only the person who added a place can remove it.')
+  // Drain votes in bounded batches, then remove the place.
+  for (;;) {
+    const r = await tools.deleteWhere('votes', { placeId }, 500)
+    if (!r.success) return fail(r.error)
+    if (r.data.deleted < 500) break
+  }
+  const removed = await tools.remove('places', placeId)
+  if (!removed.success) return fail(removed.error)
+  return ok({ removed: true })
 }
 
 export const addPlace: ActionHandler<Env> = async ({ userId, params, tools }) => {
