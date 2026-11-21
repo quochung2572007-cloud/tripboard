@@ -17,6 +17,7 @@ export interface Envelope<T> {
 }
 
 export interface TripData {
+  tripId?: string
   name: string
   destination: string
   country?: string
@@ -93,7 +94,7 @@ export async function requireMember(
   tools: ActionTools,
   tripId: string,
   userId: string,
-): Promise<{ ok: true; trip: Envelope<TripData> } | { ok: false; error: string }> {
+): Promise<{ ok: true; trip: Envelope<TripData>; member: Envelope<MemberData> } | { ok: false; error: string }> {
   if (!tripId) return { ok: false, error: 'Trip not found.' }
   // Independent reads — run them together (one DO round trip of latency, not two).
   const [trip, rows] = await Promise.all([
@@ -101,8 +102,9 @@ export async function requireMember(
     queryAll<MemberData>(tools, 'team_members', { teamId: tripId, userId }),
   ])
   if (!trip) return { ok: false, error: 'Trip not found.' }
-  if (!rows.some((m) => m.data.status !== 'left')) return { ok: false, error: 'You are not on this trip.' }
-  return { ok: true, trip }
+  const member = rows.find((m) => m.data.status !== 'left')
+  if (!member) return { ok: false, error: 'You are not on this trip.' }
+  return { ok: true, trip, member }
 }
 
 function today(): string {

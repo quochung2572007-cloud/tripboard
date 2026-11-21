@@ -121,7 +121,7 @@ test('one vote per person per place is enforced by the server', async ({ users }
     startDate: new Date(Date.now() + 86400e3 * 20).toISOString().slice(0, 10),
     endDate: new Date(Date.now() + 86400e3 * 21).toISOString().slice(0, 10),
   })
-  expect(created.success).toBe(true)
+  expect(created.error ?? 'ok').toBe('ok')
   const { tripId } = created.data as { tripId: string }
   const added = await action(alice.page, 'addPlace', { tripId, name: 'Livraria Lello' })
   expect(added.success).toBe(true)
@@ -144,4 +144,63 @@ test('one vote per person per place is enforced by the server', async ({ users }
   )
   await expect(toast).toBeVisible({ timeout: 10_000 })
   await expect(card(alice.page, 'Livraria Lello').getByTestId('vote-count')).toHaveText('1')
+})
+
+test('organizer edits and replaces the link; a member leaves and rejoins', async ({ users }) => {
+  const [alice, bob, carol] = await users(['Alice', 'Bob', 'Carol'])
+  const d = (n: number) => new Date(Date.now() + n * 86400e3).toISOString().slice(0, 10)
+  await alice.page.goto('/home')
+  const created = await action(alice.page, 'createTrip', { name: `Manage ${Date.now().toString(36)}`, destination: 'Porto', startDate: d(30), endDate: d(32) })
+  expect(created.error ?? 'ok').toBe('ok')
+  const { tripId } = created.data as { tripId: string }
+
+  await alice.page.goto(`/trip/${tripId}`)
+  const oldInvite = new URL((await alice.page.getByTestId('copy-invite').getAttribute('data-invite-url'))!).pathname
+  await bob.page.goto(oldInvite)
+  await bob.page.getByTestId('join-trip').click()
+  await expect(bob.page).toHaveURL(new RegExp(`/trip/${tripId}$`), { timeout: 30_000 })
+
+  // Members see only "Leave"; the organizer sees edit + new link.
+  await expect(bob.page.getByTestId('edit-trip')).toHaveCount(0)
+  await expect(alice.page.getByTestId('leave-trip')).toHaveCount(0)
+  // …and the server enforces it regardless of the UI.
+  expect((await action(bob.page, 'updateTrip', { tripId, name: 'Hijacked' })).error).toMatch(/Only the organizer/)
+  expect((await action(bob.page, 'rotateInvite', { tripId })).error).toMatch(/Only the organizer/)
+  expect((await action(alice.page, 'leaveTrip', { tripId })).error).toMatch(/organizer can’t leave/)
+
+  // Rename + new dates through the UI; Bob sees it live.
+  await alice.page.getByTestId('edit-trip').click()
+  await alice.page.locator('#edit-name').fill('Porto, renamed')
+  await alice.page.locator('#edit-end').fill(d(33))
+  await alice.page.getByTestId('save-trip').click()
+  await expect(bob.page.getByTestId('trip-name')).toHaveText('Porto, renamed', { timeout: 15_000 })
+  const badDates = await action(alice.page, 'updateTrip', { tripId, startDate: d(10), endDate: d(5) })
+  expect(badDates.error).toMatch(/ends before/)
+
+  // Replace the link: the old one dies, the new one works.
+  await alice.page.getByTestId('rotate-invite').click()
+  await alice.page.getByRole('button', { name: 'Replace link' }).click()
+  await expect(alice.page.getByTestId('copy-invite')).not.toHaveAttribute('data-invite-url', new RegExp(oldInvite + '$'), { timeout: 15_000 })
+  const newInvite = new URL((await alice.page.getByTestId('copy-invite').getAttribute('data-invite-url'))!).pathname
+  await carol.page.goto(oldInvite)
+  await expect(carol.page.getByText(/invalid or has been replaced/)).toBeVisible({ timeout: 15_000 })
+
+  // Bob adds a place and votes, then leaves: his vote is removed and the board closes to him.
+  const added = await action(bob.page, 'addPlace', { tripId, name: 'Livraria Lello' })
+  expect(added.success).toBe(true)
+  await card(bob.page, 'Livraria Lello').getByTestId('vote-button').click()
+  await expect(card(alice.page, 'Livraria Lello').getByTestId('vote-count')).toHaveText('1', { timeout: 15_000 })
+  await bob.page.getByTestId('leave-trip').click()
+  await bob.page.getByRole('button', { name: 'Leave trip' }).last().click()
+  await expect(bob.page).toHaveURL(/\/home$/, { timeout: 30_000 })
+  await expect(bob.page.getByText('Porto, renamed')).toHaveCount(0)
+  await expect(card(alice.page, 'Livraria Lello').getByTestId('vote-count')).toHaveText('0', { timeout: 15_000 })
+  await bob.page.goto(`/trip/${tripId}`)
+  await expect(bob.page.getByTestId('trip-missing')).toBeVisible({ timeout: 15_000 })
+  expect((await action(bob.page, 'addPlace', { tripId, name: 'After leaving' })).success).toBe(false)
+
+  // He can come back with the current link.
+  await bob.page.goto(newInvite)
+  await bob.page.getByTestId('join-trip').click()
+  await expect(bob.page.getByTestId('trip-name')).toHaveText('Porto, renamed', { timeout: 30_000 })
 })

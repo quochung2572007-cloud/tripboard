@@ -29,6 +29,11 @@ const teamReadOnly: Record<string, RolePermissions> = {
 export const tripsSchema: CollectionSchema = {
   name: 'trips',
   columns: [
+    // The trip's own record id, so the trip row can name its team like every
+    // other trip-scoped row. (teamField '_rowId' is honoured when rows are
+    // queried but not when updates are broadcast, so renames and the
+    // "building" lock never reached members other than the creator.)
+    { name: 'tripId', storage: 'text', interpretation: 'plain' },
     { name: 'name', storage: 'text', interpretation: 'plain', required: true, maxLength: 80 },
     { name: 'destination', storage: 'text', interpretation: 'plain', required: true, maxLength: 120 },
     { name: 'country', storage: 'text', interpretation: 'plain' },
@@ -44,8 +49,8 @@ export const tripsSchema: CollectionSchema = {
     { name: 'generatingAt', storage: 'number', interpretation: 'plain' },
     { name: 'lastEmailAt', storage: 'number', interpretation: 'plain' },
   ],
-  // The trip row IS the team: its own record id is the team id.
-  teamField: '_rowId',
+  // The trip row IS the team: `tripId` holds its own record id.
+  teamField: 'tripId',
   permissions: teamReadOnly,
 }
 

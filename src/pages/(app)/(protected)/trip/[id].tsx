@@ -113,7 +113,7 @@ export default function TripPage() {
         <Link to="/home" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> My trips
         </Link>
-        <TripHeader trip={trip.data} people={people} />
+        <TripHeader tripId={id} trip={trip.data} people={people} isOrganizer={people.some((p) => p.isMe && p.organizer)} />
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
           <div className="space-y-6">

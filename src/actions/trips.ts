@@ -18,6 +18,7 @@ import {
   ok,
   param,
   queryAll,
+  requireMember,
   takeQuota,
   type MemberData,
   type TripData,
@@ -51,7 +52,10 @@ export const createTrip: ActionHandler<Env> = async ({ userId, params, tools }) 
   if (!hit) return fail(`We couldn't find "${destinationInput}". Try a city name, e.g. "Lisbon".`)
   const destination = [hit.name, hit.state, hit.country].filter(Boolean).join(', ')
 
+  // Choose the id up front so the row can carry it as its own team id.
+  const tripId = `trip_${crypto.randomUUID().replace(/-/g, '')}`
   const trip: TripData = {
+    tripId,
     name,
     destination,
     country: hit.country ?? '',
@@ -62,9 +66,8 @@ export const createTrip: ActionHandler<Env> = async ({ userId, params, tools }) 
     inviteToken: newToken(),
     generating: false,
   }
-  const created = await tools.create('trips', trip as unknown as Record<string, unknown>)
+  const created = await tools.create('trips', trip as unknown as Record<string, unknown>, tripId)
   if (!created.success) return fail(created.error)
-  const tripId = created.data.recordId
 
   const member: MemberData = { teamId: tripId, userId, status: 'active', role: 'organizer' }
   const joined = await tools.create('team_members', member as unknown as Record<string, unknown>)
@@ -112,4 +115,80 @@ export const joinTrip: ActionHandler<Env> = async ({ userId, params, tools }) =>
   const r = await tools.create('team_members', member as unknown as Record<string, unknown>)
   if (!r.success) return fail(r.error)
   return ok({ tripId, joined: true })
+}
+
+// ─── Managing a trip ────────────────────────────────────────────────────────
+// Organizer-only actions check the caller's membership role on the server;
+// the UI hiding a button is not the boundary.
+
+export const updateTrip: ActionHandler<Env> = async ({ userId, params, tools }) => {
+  const tripId = param(params, 'tripId', 64)
+  const access = await requireMember(tools, tripId, userId)
+  if (!access.ok) return fail(access.error)
+  if (access.member.data.role !== 'organizer') return fail('Only the organizer can edit the trip.')
+
+  const name = param(params, 'name', 80) || access.trip.data.name
+  const startDate = param(params, 'startDate', 10) || access.trip.data.startDate
+  const endDate = param(params, 'endDate', 10) || access.trip.data.endDate
+  const dateError = validateTripDates(startDate, endDate)
+  if (dateError) return fail(dateError)
+
+  const datesChanged = startDate !== access.trip.data.startDate || endDate !== access.trip.data.endDate
+  const r = await tools.update('trips', tripId, {
+    name,
+    startDate,
+    endDate,
+    // New dates may fall in a different forecast window: drop the cache.
+    ...(datesChanged ? { forecast: [], forecastAt: 0 } : {}),
+  })
+  if (!r.success) return fail(r.error)
+  return ok({ tripId, datesChanged })
+}
+
+/** Replace the invite link. The old link stops working immediately. */
+export const rotateInvite: ActionHandler<Env> = async ({ userId, params, tools }) => {
+  const tripId = param(params, 'tripId', 64)
+  const access = await requireMember(tools, tripId, userId)
+  if (!access.ok) return fail(access.error)
+  if (access.member.data.role !== 'organizer') return fail('Only the organizer can replace the invite link.')
+  const r = await tools.update('trips', tripId, { inviteToken: newToken() })
+  if (!r.success) return fail(r.error)
+  return ok({ tripId })
+}
+
+/**
+ * Leave a trip. The membership row is kept with status 'left' (so votes and
+ * places stay attributable), and the team rule stops sending the trip's rows.
+ * The organizer can't leave: the platform always lets a row's creator read it,
+ * so an organizer who "left" would still see the trip they created.
+ */
+export const leaveTrip: ActionHandler<Env> = async ({ userId, params, tools }) => {
+  const tripId = param(params, 'tripId', 64)
+  const access = await requireMember(tools, tripId, userId)
+  if (!access.ok) return fail(access.error)
+  if (access.member.data.role === 'organizer') return fail('The organizer can’t leave their own trip.')
+  // Their votes no longer count; remove them so tallies stay honest.
+  for (;;) {
+    const r = await tools.deleteWhere('votes', { tripId, userId }, 500)
+    if (!r.success) return fail(r.error)
+    if (r.data.deleted < 500) break
+  }
+  const r = await tools.update('team_members', access.member.recordId, { status: 'left' })
+  if (!r.success) return fail(r.error)
+  return ok({ tripId })
+}
+
+/**
+ * One-time, owner-only backfill for trips created before `tripId` existed.
+ * Idempotent: only touches rows whose `tripId` is missing.
+ */
+export const backfillTripIds: ActionHandler<Env> = async ({ tools }) => {
+  const all = await queryAll<TripData>(tools, 'trips', {}, 500)
+  let updated = 0
+  for (const t of all) {
+    if (t.data.tripId === t.recordId) continue
+    const r = await tools.update('trips', t.recordId, { tripId: t.recordId })
+    if (r.success) updated++
+  }
+  return ok({ scanned: all.length, updated })
 }
