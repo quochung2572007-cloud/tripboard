@@ -127,7 +127,7 @@ export function PlanPanel({ tripId, trip, itineraries, placeNames, placeCount, n
                       <div>
                         <p className="font-medium">
                           {s.title}
-                          {placeName && placeName !== s.title && <span className="font-normal text-muted-foreground"> · {placeName}</span>}
+                          {placeName && !s.title.toLowerCase().includes(placeName.toLowerCase()) && <span className="font-normal text-muted-foreground"> · {placeName}</span>}
                           {placeName && <span className="ml-1.5 rounded-sm bg-stamp/10 px-1 text-[10px] font-semibold uppercase text-stamp">voted</span>}
                         </p>
                         {s.detail && <p className="text-muted-foreground">{s.detail}</p>}

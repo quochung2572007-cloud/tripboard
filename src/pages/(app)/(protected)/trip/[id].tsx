@@ -44,7 +44,8 @@ export default function TripPage() {
       activeMembers
         .map((m) => ({
           userId: m.data.userId,
-          name: m.data.userId === me ? 'You' : nameOf(m.data.userId),
+          name: nameOf(m.data.userId),
+          isMe: m.data.userId === me,
           online: onlineIds.has(m.data.userId),
           organizer: m.data.role === 'organizer',
         }))
@@ -118,7 +119,7 @@ export default function TripPage() {
           <div className="space-y-6">
             <PlaceFinder tripId={id} destination={trip.data.destination} existingNames={existingNames} />
             <div>
-              <div className="mb-3 flex items-baseline justify-between">
+              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
                 <h2 className="font-display text-2xl font-semibold">The shortlist</h2>
                 <p className="text-xs text-muted-foreground">Vote on what you'd go to. Most votes rise to the top.</p>
               </div>

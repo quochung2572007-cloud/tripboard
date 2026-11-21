@@ -9,6 +9,7 @@ export interface Person {
   name: string
   online: boolean
   organizer: boolean
+  isMe: boolean
 }
 
 export function TripHeader({ trip, people }: { trip: Trip; people: Person[] }) {
@@ -39,7 +40,7 @@ export function TripHeader({ trip, people }: { trip: Trip; people: Person[] }) {
         </h1>
       </div>
       <div className="flex items-center gap-4">
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-start gap-1 md:items-end">
           <div className="flex -space-x-2" data-testid="trip-people">
             {people.map((p) => (
               <Tooltip key={p.userId}>
@@ -56,7 +57,7 @@ export function TripHeader({ trip, people }: { trip: Trip; people: Person[] }) {
                   {p.online && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card bg-success" />}
                 </TooltipTrigger>
                 <TooltipContent>
-                  {p.name}
+                  {p.isMe ? 'You' : p.name}
                   {p.organizer ? ' · organizer' : ''}
                   {p.online ? ' · on the board now' : ''}
                 </TooltipContent>
