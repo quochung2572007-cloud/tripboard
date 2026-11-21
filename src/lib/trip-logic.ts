@@ -190,6 +190,33 @@ export interface PlaceSuggestion {
 }
 
 /**
+ * Parse the line format `name | kind | why | source`. Chosen over JSON because
+ * free text (quoted dish names, nicknames) never needs escaping — a JSON reply
+ * with one unescaped quote failed whole searches in production. Falls back to
+ * JSON if the model answers that way anyway.
+ */
+export function parseSuggestionReply(text: string): unknown[] {
+  const rows: unknown[] = []
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim()
+    const parts = line.split('|').map((p) => p.trim())
+    if (parts.length < 4) continue
+    const source = Number(parts[parts.length - 1].replace(/[^\d]/g, ''))
+    const [name, kind] = parts
+    const why = parts.slice(2, -1).join(' | ')
+    if (!name || name.toLowerCase() === 'name' || !Number.isInteger(source) || parts[parts.length - 1] === '') continue
+    rows.push({ name, kind, why, source })
+  }
+  if (rows.length || /^\s*NONE\s*$/i.test(text)) return rows
+  try {
+    const j = extractJson(text) as { places?: unknown[] } | unknown[]
+    return Array.isArray(j) ? j : Array.isArray(j?.places) ? j.places : []
+  } catch {
+    throw new Error('Unreadable reply from the model')
+  }
+}
+
+/**
  * Validate extracted suggestions: each must cite one of the sources we
  * actually fetched (by index). Anything uncited, unnamed or duplicated is
  * dropped — this is what keeps the list grounded in real pages.
@@ -222,10 +249,12 @@ export function buildSuggestPrompt(query: string, destination: string, sources: 
   const system =
     'You extract concrete, visitable places from travel sources. Only include places that are ' +
     `named in the sources and located in or near ${destination}. Never invent places. ` +
-    'Reply with JSON only: {"places":[{"name":string,"kind":string,"why":string,"source":number}]} ' +
-    '— "kind" is 1-3 words (e.g. "bakery", "viewpoint", "museum"), "why" is one sentence in English ' +
-    'under 140 characters saying what makes it worth a visit according to the source, and "source" is ' +
-    'the index of the source that names it. At most 8 places, best matches for the request first.'
+    'Reply with one place per line and nothing else, in exactly this format:\n' +
+    'name | kind | why | source\n' +
+    'where kind is 1-3 words (e.g. bakery, viewpoint, museum), why is one English sentence under 140 ' +
+    'characters saying what makes it worth a visit according to the source (no "|" characters), and ' +
+    'source is the number of the source that names it. At most 8 lines, best matches first. ' +
+    'If no source names a suitable place, reply with NONE.'
   const docs = sources
     .map((s, i) => `[${i}] ${s.title}\n${s.url}\n${s.text.slice(0, 1800)}`)
     .join('\n\n---\n\n')

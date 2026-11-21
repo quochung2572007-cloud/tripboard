@@ -3,6 +3,7 @@ import {
   extractJson,
   rankPlaces,
   renderItineraryEmail,
+  parseSuggestionReply,
   rollupForecast,
   searchCacheText,
   tripDates,
@@ -116,6 +117,26 @@ describe('validateSuggestions', () => {
     expect(out.map((p) => p.name)).toEqual(['Manteigaria', 'Alcôa'])
     expect(out[0].sourceUrl).toBe('https://blog.example/b')
     expect(out[1].sourceTitle).toBe('Time Out')
+  })
+})
+
+describe('parseSuggestionReply', () => {
+  it('parses lines with quotes, bullets and stray pipes in the why', () => {
+    const rows = parseSuggestionReply(
+      'name | kind | why | source\n' +
+        '- Cervejaria Ramiro | seafood | Famous for "prego" steak sandwiches | 4\n' +
+        '2. O "Velho" Eurico | tasca | Tiny | family-run | 1\n' +
+        'not a place line\n' +
+        'Broken | kind | no source |',
+    ) as { name: string; why: string; source: number }[]
+    expect(rows.map((r) => r.name)).toEqual(['Cervejaria Ramiro', 'O "Velho" Eurico'])
+    expect(rows[0].why).toBe('Famous for "prego" steak sandwiches')
+    expect(rows[1]).toMatchObject({ why: 'Tiny | family-run', source: 1 })
+  })
+  it('accepts NONE and falls back to JSON', () => {
+    expect(parseSuggestionReply('NONE')).toEqual([])
+    expect(parseSuggestionReply('{"places":[{"name":"A","source":0}]}')).toEqual([{ name: 'A', source: 0 }])
+    expect(() => parseSuggestionReply('I could not find anything useful.')).toThrow()
   })
 })
 

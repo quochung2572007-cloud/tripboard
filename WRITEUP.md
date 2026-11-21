@@ -60,7 +60,7 @@ Smaller tradeoffs:
 
 ## Verification
 
-Automated (`npx deepspace test run all`: 13/13 passing; `vitest`: 14/14, 11 of them for the trip logic):
+Automated (`npx deepspace test run all`: 13/13 passing; `vitest`: 17/17, 14 of them for the trip logic):
 - Alice creates a trip. Bob joins via the invite link. Alice sees Bob arrive (presence) without reloading.
 - Places and votes sync live; the shortlist reorders for both; un-voting syncs.
 - Carol (not invited) gets "This board isn't open to you", and the server refuses her `addPlace` and `generateItinerary` calls.
@@ -80,6 +80,17 @@ Live, on https://tripboard.app.space (scripted, two accounts):
 <!-- - Opened the live app in two browsers / with a friend and ran the core path -->
 <!-- - Received the plan email in my own inbox -->
 <!-- - Reviewed schemas and requireMember, and tried opening a trip URL while signed out -->
+
+## Optimization pass (measured on production)
+
+I measured before changing anything. Server actions were already 45–80ms median, including the Durable Object round trips. The client bundle is 157 KB gzipped, mostly React and the SDK; the trip page is 7 KB. So the work went where the time and money actually go:
+
+| Change | Before | After |
+|---|---|---|
+| Shared 24h search cache keyed by (destination, normalized query), stored server-side | 7.5s and ~$0.02 every repeat | **37–49ms, $0, no quota used**; "Rooftop BARS!" matches "rooftop bars" |
+| Place extraction asks for one `name \| kind \| why \| source` line per place instead of JSON | Production benchmark: a paid search failed on an unescaped quote in JSON (intermittent, depends on what Exa returns) | No escaping needed; JSON kept as fallback; one retry; 17 unit tests incl. quoted names |
+| `removePlace` action deletes the place's votes (bounded `deleteWhere`) | Removing a place left orphan votes | Cascade; only the person who added it can remove it (e2e-tested) |
+| Independent reads in `requireMember` and email recipients run in parallel | Sequential round trips | One round-trip of latency |
 
 ## Unfinished / next steps
 

@@ -14,7 +14,7 @@ import type { Env } from '../../worker'
 import {
   SEARCH_CACHE_TTL_MS,
   buildSuggestPrompt,
-  extractJson,
+  parseSuggestionReply,
   searchCacheText,
   validateSuggestions,
   type PlaceSuggestion,
@@ -70,8 +70,8 @@ export const suggestPlaces: ActionHandler<Env> = async ({ userId, params, tools 
   if (!sources.length) return ok({ suggestions: [], sourceCount: 0 })
 
   const prompt = buildSuggestPrompt(query, destination, sources)
-  // Exa has already been paid for, so a malformed model reply gets one retry
-  // (seen in production: an unescaped quote inside a "why" string).
+  // Line format (see parseSuggestionReply) avoids JSON escaping failures; an
+  // unreadable reply still gets one retry, since Exa has already been paid for.
   let suggestions: PlaceSuggestion[] | null = null
   let lastError = ''
   for (let attempt = 0; attempt < 2 && !suggestions; attempt++) {
@@ -79,11 +79,11 @@ export const suggestPlaces: ActionHandler<Env> = async ({ userId, params, tools 
       const reply = await askClaude(tools, {
         model: EXTRACT_MODEL,
         system: prompt.system,
-        user: attempt === 0 ? prompt.user : `${prompt.user}\n\nReturn ONLY valid JSON. Escape any double quotes inside strings.`,
+        user: attempt === 0 ? prompt.user : `${prompt.user}\n\nUse exactly one "name | kind | why | source" line per place.`,
         maxTokens: 1500,
         temperature: 0,
       })
-      suggestions = validateSuggestions(extractJson(reply), sources)
+      suggestions = validateSuggestions(parseSuggestionReply(reply), sources)
     } catch (e) {
       lastError = (e as Error).message
     }
